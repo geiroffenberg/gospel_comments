@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/admob_config.dart';
@@ -22,6 +24,7 @@ class BibleReader extends StatefulWidget {
 class _BibleReaderState extends State<BibleReader> {
   static const String _lastBookKey = 'last_read_book';
   static const String _lastOffsetKey = 'last_read_offset';
+  static const String _hideStartupInfoKey = 'hide_startup_info';
 
   final BibleService _bibleService = BibleService();
   final NoteService _noteService = NoteService.instance;
@@ -38,6 +41,9 @@ class _BibleReaderState extends State<BibleReader> {
   BannerAd? _bannerAd;
   bool _isBannerAdReady = false;
   bool _showLongPressTip = false;
+  Map<String, dynamic> _strongsDictionary = {};
+  bool _isStrongsDictionaryLoaded = false;
+  bool _isLoadingStrongsDictionary = false;
   String? _restoredBook;
   double _restoredOffset = 0;
   double _textScale = 1.0;
@@ -102,18 +108,228 @@ class _BibleReaderState extends State<BibleReader> {
     return _verseKeys.putIfAbsent('$chapter:$verse', () => GlobalKey());
   }
 
+  Future<void> _loadStrongsDictionary() async {
+    if (_isStrongsDictionaryLoaded || _isLoadingStrongsDictionary) return;
+
+    _isLoadingStrongsDictionary = true;
+    try {
+      final jsText = await rootBundle.loadString(
+        'assets/strongs-greek-dictionary.js',
+      );
+      final firstBrace = jsText.indexOf('{');
+      final lastBrace = jsText.lastIndexOf('}');
+      if (firstBrace == -1 || lastBrace == -1 || firstBrace >= lastBrace) {
+        return;
+      }
+
+      final jsonObject = jsText.substring(firstBrace, lastBrace + 1);
+      final parsed = json.decode(jsonObject) as Map<String, dynamic>;
+      _strongsDictionary = parsed;
+      _isStrongsDictionaryLoaded = true;
+    } catch (_) {
+      _strongsDictionary = {};
+      _isStrongsDictionaryLoaded = false;
+    } finally {
+      _isLoadingStrongsDictionary = false;
+    }
+  }
+
+  Future<void> _showStartupInfoIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hideInfo = prefs.getBool(_hideStartupInfoKey) ?? false;
+    if (hideInfo || !mounted) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      bool doNotShowAgain = false;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                title: const Text('Welcome'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'This app shows New Testament text with Greek Strong\'s support.',
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Words added by the translators (not in the Greek original) are shown in italics.',
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Tap any normal word to view its Greek Strong\'s dictionary entry when available.',
+                    ),
+                    const SizedBox(height: 12),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      value: doNotShowAgain,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          doNotShowAgain = value ?? false;
+                        });
+                      },
+                      title: const Text('Do not show again'),
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () async {
+                      if (doNotShowAgain) {
+                        await prefs.setBool(_hideStartupInfoKey, true);
+                      }
+                      if (mounted) {
+                        Navigator.of(dialogContext).pop();
+                      }
+                    },
+                    child: const Text('Continue'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    });
+  }
+
+  Future<void> _showStrongsEntry(Word word) async {
+    if (word.s.isEmpty) return;
+    final code = word.s.first;
+
+    if (!_isStrongsDictionaryLoaded) {
+      await _loadStrongsDictionary();
+    }
+
+    if (!mounted) return;
+
+    final entry = _strongsDictionary[code];
+    final entryMap = entry is Map<String, dynamic> ? entry : null;
+
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('${word.w} ($code)'),
+          content: SingleChildScrollView(
+            child: entryMap == null
+                ? Text('No Greek dictionary entry found for $code.')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _dictionaryLine('Lemma', entryMap['lemma']),
+                      _dictionaryLine('Translit', entryMap['translit']),
+                      _dictionaryLine('Strong\'s Def', entryMap['strongs_def']),
+                      _dictionaryLine('KJV Def', entryMap['kjv_def']),
+                      _dictionaryLine('Derivation', entryMap['derivation']),
+                    ].whereType<Widget>().toList(),
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget? _dictionaryLine(String label, dynamic value) {
+    final text = (value ?? '').toString().trim();
+    if (text.isEmpty) return null;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(color: Colors.black, height: 1.35),
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            TextSpan(text: text),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVerseText(Verse verse, TextStyle baseStyle, TextStyle refStyle) {
+    final children = <Widget>[
+      Text(
+        '${verse.chapter}:${verse.verse} ',
+        style: refStyle,
+      ),
+    ];
+
+    for (final word in verse.words) {
+      final text = word.p != null ? '${word.w}${word.p} ' : '${word.w} ';
+      final style = word.a
+          ? baseStyle.copyWith(fontStyle: FontStyle.italic)
+          : baseStyle;
+
+      if (word.a || word.s.isEmpty) {
+        children.add(Text(text, style: style));
+      } else {
+        children.add(
+          GestureDetector(
+            onTap: () => _showStrongsEntry(word),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 1),
+              child: Text(text, style: style),
+            ),
+          ),
+        );
+      }
+    }
+
+    if (_noteService.hasNote(verse.bookName, verse.chapter, verse.verse)) {
+      children.add(
+        const Text(
+          '*',
+          style: TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+      );
+    }
+
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: children,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _loadBannerAd();
-    _restoreReadingPosition();
+    _loadStrongsDictionary();
+    _showStartupInfoIfNeeded();
     _scrollController.addListener(_onScrollChanged);
     _noteService.loadNotes().then((_) {
       if (!mounted) return;
       setState(() {});
       _setTipVisibilityFromNotes();
     });
-    _bibleFuture = _bibleService.loadBible().then((verses) {
+    _bibleFuture = _restoreReadingPosition().then((_) {
+      return _bibleService.loadBible();
+    }).then((verses) {
       _books = _bibleService.getUniqueBooks();
       if (_selectedBook == null && _books.isNotEmpty) {
         _selectedBook =
@@ -153,7 +369,10 @@ class _BibleReaderState extends State<BibleReader> {
 
   Future<void> _saveReadingPosition() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_lastBookKey, _selectedBook ?? '');
+    final selectedBook = _selectedBook;
+    if (selectedBook != null && selectedBook.isNotEmpty) {
+      await prefs.setString(_lastBookKey, selectedBook);
+    }
     if (_scrollController.hasClients) {
       await prefs.setDouble(_lastOffsetKey, _scrollController.offset);
     }
@@ -223,7 +442,7 @@ class _BibleReaderState extends State<BibleReader> {
             bookName: verse.bookName,
             chapter: verse.chapter,
             verse: verse.verse,
-            verseText: verse.text,
+            verseText: verse.plainText,
             existingNote: existingNote,
           ),
           fullscreenDialog: true,
@@ -326,7 +545,9 @@ class _BibleReaderState extends State<BibleReader> {
                                 results = allVerses
                                     .where(
                                       (v) =>
-                                          v.text.toLowerCase().contains(query),
+                                          v.plainText.toLowerCase().contains(
+                                            query,
+                                          ),
                                     )
                                     .take(100)
                                     .toList();
@@ -359,7 +580,7 @@ class _BibleReaderState extends State<BibleReader> {
                                     '${verse.bookName} ${verse.chapter}:${verse.verse}',
                                   ),
                                   subtitle: Text(
-                                    verse.text,
+                                    verse.plainText,
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -444,11 +665,9 @@ class _BibleReaderState extends State<BibleReader> {
                         ),
                         SizedBox(height: 8),
                         Text(
-                          'The World English Bible (WEB) is a modern, public domain, and free '
-                          'English translation of the Bible completed in 2020, based on the 1901 '
-                          'American Standard Version. It uses a formal equivalence (word-for-word) '
-                          'method, aiming for accuracy while being readable, and uses "Yahweh" for '
-                          "God's name.",
+                          'This app uses the New Testament KJV text with Greek Strong\'s '
+                          'references in the source data. Helper words may appear in italics. '
+                          'Tap a word to open its Greek Strong\'s definition and related details.',
                           style: TextStyle(
                             fontSize: 17,
                             height: 1.35,
@@ -467,6 +686,7 @@ class _BibleReaderState extends State<BibleReader> {
                           '- Long-press a verse to add or edit a note.\n'
                           '- Use Notes to browse all saved notes.\n'
                           '- Use Search to find words or phrases.\n'
+                          '- Tap a word to view its Greek Strong\'s definition.\n'
                           '- Use Text to enlarge reading size.',
                           style: TextStyle(
                             fontSize: 17,
@@ -497,7 +717,7 @@ class _BibleReaderState extends State<BibleReader> {
         child: Tooltip(
           message: tooltip,
           child: Container(
-            height: 74,
+            height: 56,
             decoration: BoxDecoration(
               color: const Color(0xFF2F6B33),
               border: Border(
@@ -623,9 +843,9 @@ class _BibleReaderState extends State<BibleReader> {
               // Book Selection
               Container(
                 color: const Color(0xFFFFF9DB),
+                height: 56,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 12,
                 ),
                 child: Row(
                   children: [
@@ -815,63 +1035,28 @@ class _BibleReaderState extends State<BibleReader> {
                                         )
                                         ? const EdgeInsets.all(8)
                                         : EdgeInsets.zero,
-                                    child: RichText(
-                                      text: TextSpan(
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyLarge
-                                            ?.copyWith(
-                                              fontSize:
-                                                  (Theme.of(context)
-                                                          .textTheme
-                                                          .bodyLarge
-                                                          ?.fontSize ??
-                                                      16) *
-                                                  _textScale,
-                                            ),
-                                        children: [
-                                          TextSpan(
-                                            text:
-                                                '${verse.chapter}:${verse.verse} ',
-                                            style: TextStyle(
-                                              color: Colors.blue[700],
-                                              fontWeight: FontWeight.bold,
-                                              fontSize:
-                                                  ((Theme.of(context)
-                                                          .textTheme
-                                                          .bodyLarge
-                                                          ?.fontSize ??
-                                                      16) *
-                                                  _textScale),
-                                            ),
-                                          ),
-                                          TextSpan(
-                                            text: verse.text,
-                                            style: TextStyle(
-                                              color: Colors.black,
-                                              fontSize:
-                                                  ((Theme.of(context)
-                                                          .textTheme
-                                                          .bodyLarge
-                                                          ?.fontSize ??
-                                                      16) *
-                                                  _textScale),
-                                            ),
-                                          ),
-                                          if (_noteService.hasNote(
-                                            verse.bookName,
-                                            verse.chapter,
-                                            verse.verse,
-                                          ))
-                                            TextSpan(
-                                              text: ' *',
-                                              style: const TextStyle(
-                                                color: Colors.red,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                        ],
+                                    child: _buildVerseText(
+                                      verse,
+                                      TextStyle(
+                                        color: Colors.black,
+                                        fontSize:
+                                            ((Theme.of(context)
+                                                    .textTheme
+                                                    .bodyLarge
+                                                    ?.fontSize ??
+                                                16) *
+                                            _textScale),
+                                      ),
+                                      TextStyle(
+                                        color: Colors.blue[700],
+                                        fontWeight: FontWeight.bold,
+                                        fontSize:
+                                            ((Theme.of(context)
+                                                    .textTheme
+                                                    .bodyLarge
+                                                    ?.fontSize ??
+                                                16) *
+                                            _textScale),
                                       ),
                                     ),
                                   ),
@@ -898,3 +1083,5 @@ class _BibleReaderState extends State<BibleReader> {
     );
   }
 }
+
+

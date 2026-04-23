@@ -8,7 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:gospel_comments/main.dart';
+import 'package:new_testament_with_strongs/main.dart';
 
 void main() {
   testWidgets('App boots and shows loading state', (WidgetTester tester) async {

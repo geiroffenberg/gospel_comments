@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "gospel_comments" "\0"
+            VALUE "FileDescription", "New Testament with Strongs" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "gospel_comments" "\0"
+            VALUE "InternalName", "new_testament_with_strongs" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "gospel_comments.exe" "\0"
-            VALUE "ProductName", "gospel_comments" "\0"
+            VALUE "OriginalFilename", "new_testament_with_strongs.exe" "\0"
+            VALUE "ProductName", "New Testament with Strongs" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

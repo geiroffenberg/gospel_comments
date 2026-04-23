@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/verse.dart';
 
 class BibleService {
-  static const String _assetPath = 'assets/web.json';
+  static const String _assetPath = 'assets/kjv_strongs.json';
   List<Verse> _verses = [];
   bool _isLoaded = false;
 

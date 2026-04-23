@@ -1,11 +1,11 @@
 {
-    "name": "gospel_comments",
-    "short_name": "gospel_comments",
+    "name": "New Testament with Strongs",
+    "short_name": "NT Strongs",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "New Testament reader with Greek Strong's support.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

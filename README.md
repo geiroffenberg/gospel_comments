@@ -1,4 +1,4 @@
-# gospel_comments
+# New Testament with Strongs
 
 A new Flutter project.
 

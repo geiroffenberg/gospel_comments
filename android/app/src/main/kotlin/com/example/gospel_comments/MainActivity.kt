@@ -1,4 +1,4 @@
-package com.example.gospel_comments
+package com.example.newtestamentwithstrongs
 
 import io.flutter.embedding.android.FlutterActivity
 
