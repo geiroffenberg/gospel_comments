@@ -425,7 +425,8 @@ class _BibleReaderState extends State<BibleReader> {
       'ADV-S': 'An adverb in superlative form (most / -est).',
       'ADV-I': 'An adverb used in questions (how, when, where).',
       'ADV-N': 'An adverb reading from the Nestle/critical text.',
-      'ADV-K': 'An adverb reading from the Byzantine / Textus Receptus tradition.',
+      'ADV-K':
+          'An adverb reading from the Byzantine / Textus Receptus tradition.',
       'PRT': 'A small function word that adds nuance or structure.',
       'PRT-N': 'A particle used to express negation.',
       'PRT-I': 'A particle used in questions.',
@@ -433,7 +434,8 @@ class _BibleReaderState extends State<BibleReader> {
       'ARAM': 'A transliterated Aramaic word in the Greek text.',
       'INJ': 'An exclamation or emotional expression.',
       'COND': 'Introduces a condition (often translated as if).',
-      'COND-K': 'Conditional particle reading from the Byzantine / Textus Receptus tradition.',
+      'COND-K':
+          'Conditional particle reading from the Byzantine / Textus Receptus tradition.',
     };
 
     if (simpleLabels.containsKey(code)) {
@@ -671,16 +673,15 @@ class _BibleReaderState extends State<BibleReader> {
           'K': 'Byzantine/TR variant',
         };
         const vDetails = <String, String>{
-          'ATT': 'An Attic Greek dialectal form preserved in the New Testament text.',
+          'ATT':
+              'An Attic Greek dialectal form preserved in the New Testament text.',
           'ABB': 'A shortened or abbreviated written form.',
           'N': 'Reading from the Nestle/critical Greek text.',
           'K': 'Reading from the Byzantine / Textus Receptus tradition.',
         };
         final label = vLabels[v];
         if (label != null) {
-          tokens.add(
-            _MorphToken(label, vDetails[v] ?? 'Variant code: $v.'),
-          );
+          tokens.add(_MorphToken(label, vDetails[v] ?? 'Variant code: $v.'));
         }
       }
     } else if (parts.length >= 2) {
@@ -699,14 +700,14 @@ class _BibleReaderState extends State<BibleReader> {
       };
       const indeclDetails = <String, String>{
         'LI': 'A Greek letter used as a label or number; does not inflect.',
-        'OI': 'An indeclinable form that does not change for case, number, or gender.',
-        'PRI': 'A proper name that does not inflect (often transliterated from Hebrew or Aramaic).',
+        'OI':
+            'An indeclinable form that does not change for case, number, or gender.',
+        'PRI':
+            'A proper name that does not inflect (often transliterated from Hebrew or Aramaic).',
         'NUI': 'A cardinal number written out as a word; does not inflect.',
       };
       if (indeclLabels.containsKey(cng)) {
-        tokens.add(
-          _MorphToken(indeclLabels[cng]!, indeclDetails[cng]!),
-        );
+        tokens.add(_MorphToken(indeclLabels[cng]!, indeclDetails[cng]!));
         cng = '';
       } else {
         // Possessive pronouns (S-*) use a 2-character person + possessor-number
@@ -722,7 +723,8 @@ class _BibleReaderState extends State<BibleReader> {
             _MorphToken(
               '${personLabels[p]} ${numLabels[pn]!.toLowerCase()} possessor',
               'Possessor is ${personDetails[p]?.toLowerCase() ?? 'person $p.'} '
-                  '${numDetails[pn]?.toLowerCase() ?? ''}'.trim(),
+                      '${numDetails[pn]?.toLowerCase() ?? ''}'
+                  .trim(),
             ),
           );
           cng = cng.substring(2);
@@ -780,7 +782,8 @@ class _BibleReaderState extends State<BibleReader> {
         'S': 'Expresses the highest degree (most / -est).',
         'N': 'Reading from the Nestle/critical Greek text.',
         'K': 'Reading from the Byzantine / Textus Receptus tradition.',
-        'ATT': 'An Attic Greek dialectal form preserved in the New Testament text.',
+        'ATT':
+            'An Attic Greek dialectal form preserved in the New Testament text.',
         'ABB': 'A shortened or abbreviated written form.',
         'I': 'Carries an interrogative (question) force.',
       };
@@ -971,30 +974,32 @@ class _BibleReaderState extends State<BibleReader> {
     return entries;
   }
 
-  String _studyWordLabel(Word word) {
-    final raw = word.w.trim();
-    if (raw.isEmpty) return word.w;
+  String _capitalizeFirstLetter(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1);
+  }
 
-    final lower = raw.toLowerCase();
+  String _normalizeStudyText(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return '';
 
-    // Mark the definite article "the" when it is baked into the English
-    // lexeme with no dedicated G3588 card. If G3588 is present as its own
-    // Strong's code, it gets its own article card and the prefix would be
-    // redundant (e.g. avoids "(the) of liberty").
-    if (lower.startsWith('the ') && raw.length > 4 && !word.s.contains('G3588')) {
-      return '(the) ${raw.substring(4)}';
-    }
+    return trimmed
+        .replaceAll(RegExp(r'^[^A-Za-z0-9]+|[^A-Za-z0-9]+$'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .toLowerCase();
+  }
 
-    // Greek has no indefinite article, so KJV's "a" / "an" is supplied by the
-    // translator. Mark it so readers know it is not in the Greek.
-    if (lower.startsWith('a ') && raw.length > 2) {
-      return '(a) ${raw.substring(2)}';
-    }
-    if (lower.startsWith('an ') && raw.length > 3) {
-      return '(an) ${raw.substring(3)}';
-    }
+  String _studyWordLabel(Word word, {String? tappedToken}) {
+    final source = (tappedToken ?? word.w).trim();
+    if (source.isEmpty) return _capitalizeFirstLetter(word.w.trim());
 
-    return raw;
+    // Remove edge punctuation so tapping "book," displays as "Book".
+    final cleaned = source.replaceAll(
+      RegExp(r'^[^A-Za-z0-9]+|[^A-Za-z0-9]+$'),
+      '',
+    );
+    final label = cleaned.isNotEmpty ? cleaned : source;
+    return _capitalizeFirstLetter(label);
   }
 
   Widget _buildStrongsDefinitionCard({
@@ -1245,17 +1250,15 @@ class _BibleReaderState extends State<BibleReader> {
     );
   }
 
-  Future<void> _showStrongsEntry(Word word) async {
+  Future<void> _showStrongsEntry(Word word, {String? tappedToken}) async {
     if (word.s.isEmpty) return;
     final displayEntries = _buildStrongsDisplayEntries(word);
     if (displayEntries.isEmpty) return;
     final headerCodeLabel = displayEntries.map((e) => e.code).join(' + ');
-    final studyLabel = _studyWordLabel(word);
-    // Only show the "(the)" legend when the article is embedded in the English
-    // text with no dedicated G3588 card (otherwise the article has its own card).
-    final textStartsWithThe =
-        word.w.toLowerCase().trim().startsWith('the ') && word.w.length > 4;
-    final showsArticleMarker = textStartsWithThe && !word.s.contains('G3588');
+    final studyLabel = _studyWordLabel(word, tappedToken: tappedToken);
+    final fullPhrase = word.p != null ? '${word.w}${word.p}' : word.w;
+    final shouldShowPhraseExplanation =
+        _normalizeStudyText(studyLabel) != _normalizeStudyText(fullPhrase);
 
     if (!_isStrongsDictionaryLoaded) {
       await _loadStrongsDictionary();
@@ -1266,15 +1269,20 @@ class _BibleReaderState extends State<BibleReader> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
+        final mediaQuery = MediaQuery.of(context);
         return Container(
+          constraints: BoxConstraints(
+            maxHeight: mediaQuery.size.height - mediaQuery.padding.top,
+          ),
           decoration: const BoxDecoration(
             color: Color(0xFFFFF9DB),
             borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
           ),
           child: SafeArea(
-            top: false,
+            top: true,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1330,18 +1338,26 @@ class _BibleReaderState extends State<BibleReader> {
                             color: Color(0xFF1A1A1A),
                           ),
                         ),
-                        if (showsArticleMarker)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 4),
-                            child: Text(
-                              'Words in parentheses such as (the), (a), or (an) mark articles supplied in English that are not separate words in the Greek.',
-                              style: TextStyle(
-                                color: Colors.black54,
-                                fontSize: 12.5,
-                                fontStyle: FontStyle.italic,
-                              ),
+                        if (shouldShowPhraseExplanation) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Full phrase: $fullPhrase',
+                            style: const TextStyle(
+                              color: Colors.black54,
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic,
                             ),
                           ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'This is the English phrase in the verse; the Strong\'s entry below maps to the underlying Greek term(s).',
+                            style: TextStyle(
+                              color: Colors.black54,
+                              fontSize: 12.5,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
                         if (displayEntries.length > 1)
                           const Padding(
                             padding: EdgeInsets.only(top: 4),
@@ -1400,15 +1416,39 @@ class _BibleReaderState extends State<BibleReader> {
       if (word.a || word.s.isEmpty) {
         children.add(Text(text, style: style));
       } else {
-        children.add(
-          GestureDetector(
-            onTap: () => _showStrongsEntry(word),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 1),
-              child: Text(text, style: style),
+        final parts = word.w
+            .split(RegExp(r'\s+'))
+            .where((part) => part.isNotEmpty)
+            .toList();
+
+        if (parts.isEmpty) {
+          children.add(
+            GestureDetector(
+              onTap: () => _showStrongsEntry(word),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1),
+                child: Text(text, style: style),
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          for (var i = 0; i < parts.length; i++) {
+            final part = parts[i];
+            final isLast = i == parts.length - 1;
+            final visibleText =
+                isLast && word.p != null ? '$part${word.p} ' : '$part ';
+
+            children.add(
+              GestureDetector(
+                onTap: () => _showStrongsEntry(word, tappedToken: part),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 1),
+                  child: Text(visibleText, style: style),
+                ),
+              ),
+            );
+          }
+        }
       }
     }
 

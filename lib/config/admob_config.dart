@@ -5,7 +5,7 @@ class AdMobConfig {
   static const bool useTestAds = !kReleaseMode;
 
   // Replace these with your real banner IDs before release.
-  static const String _androidProdBanner = 'ca-app-pub-9327215418607539/9425918740';
+  static const String _androidProdBanner = 'ca-app-pub-9327215418607539/2286277828';
   static const String _iosProdBanner = 'ca-app-pub-xxxxxxxxxxxxxxxx/yyyyyyyyyy';
 
   // Google-provided test banner IDs.
